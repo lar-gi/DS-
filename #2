@@ -1,0 +1,544 @@
+// 10727133 鄧陳得 10727140 黃于軒
+# include<iostream>
+# include<cstring>
+# include<stdlib.h>
+# include<fstream>
+# include<vector> 
+# include<new>
+using namespace std;
+
+class TwoThreeTree {
+	struct Data {
+		int id; // 特殊序號
+		int gNum; // 上學年度畢業學生數
+		string schoolName; // 學校名稱 
+		string totalData; // 需要的全部資料 
+	};
+	vector<Data> collegeSet;
+	
+	struct Slot { // 節點內的資料 
+		vector<Data> dataSet;
+		string key;
+	};
+	
+	typedef struct Tree { // 樹的結構   
+		Slot records[2];	
+		Tree *link[3];
+		Tree *parent;
+	} TreeNode;
+	
+	typedef TreeNode *TreeNodePtr;
+	TreeNode *root; 
+	
+public:
+	TwoThreeTree() { root = NULL; }
+	bool Load( string & fileNum ) { // 讀檔 
+		cout << endl << "Input a file number: ";
+		cin >> fileNum; // 檔案編號 
+	
+		FILE *infile = NULL;
+		string filename = "input" + fileNum + ".txt";
+		infile = fopen( filename.c_str(), "r" );
+		
+		if ( infile == NULL )  // 無檔案 
+			cout << endl << filename << " does not exist!" << endl;
+		else { // 有檔案
+			collegeSet.clear(); // 清空vector 
+			char ch;
+			//讀掉前三行 
+			for ( ch = '\0'; ch != '\n' ; ch = getc(infile) );
+			for ( ch = '\0'; ch != '\n' ; ch = getc(infile) );
+			for ( ch = '\0'; ch != '\n' ; ch = getc(infile) );
+			
+			ch = getc(infile);
+			int rid = 1; // 特殊序號  
+			while ( ch != EOF ) {
+				Data temp;
+				string gNum = "";  
+				int numOfType = 0;
+				while ( ch != '\n' && ch != EOF ) {
+					if ( numOfType == 1 || numOfType == 3 || numOfType == 4 || numOfType == 5 || numOfType == 8 ) 
+						temp.totalData = temp.totalData + ch;
+
+					if ( numOfType == 1 && ch != '\t' ) // 學校名稱 
+						temp.schoolName = temp.schoolName + ch;					
+					else if ( numOfType == 8 ) // 上學年度畢業生數 
+						gNum = gNum + ch;
+						
+					if ( ch == '\t' )
+						numOfType++;
+					ch = getc(infile);
+				} // while
+				
+				temp.id = rid; 
+				temp.gNum = atoi( gNum.c_str() ) ;
+				collegeSet.push_back( temp ); // 將資料放入 collegeSet 
+				rid++;
+				if ( ch == '\n' )
+					ch = getc(infile);
+			} // while
+		
+			fclose( infile );
+			return true;
+		} // else 有檔案 
+		
+		fileNum = "";
+		return false;
+	} // Load()
+	
+	TreeNodePtr Search( Data newItem ) {
+		TreeNode *cur = root;
+			
+		while ( cur != NULL ) {
+			if ( cur->link[0] == NULL && cur->link[2] == NULL )
+				return cur; 
+			else if ( cur->records[0].key == newItem.schoolName ||
+			     ( cur->records[1].dataSet.size() != 0 && cur->records[1].key == newItem.schoolName ) ) 
+				return cur;
+			else if ( cur->records[1].dataSet.size() != 0 ) {
+				if ( newItem.schoolName < cur->records[0].key )
+					cur = cur->link[0];
+				else if ( cur->records[1].key < newItem.schoolName )
+					cur = cur->link[2];
+				else if ( cur->link[1] != NULL
+						 && cur->records[0].key < newItem.schoolName && newItem.schoolName < cur->records[1].key)
+					cur = cur->link[1];
+			} // else if
+			else if ( cur->records[1].dataSet.size() == 0 ) {
+				if ( newItem.schoolName < cur->records[0].key )
+					cur = cur->link[0];
+				else if ( cur->records[0].key < newItem.schoolName )
+					cur = cur->link[2];
+			} // else if
+		} // while
+	} // Search() 
+	
+	void Insert( Data newItem ) {
+		if ( root == NULL ) {
+			root = new TreeNode();
+			root->records[0].key = newItem.schoolName;
+			root->records[0].dataSet.push_back( newItem );
+		} // if
+		else {
+			TreeNode *cur = Search( newItem );
+			
+			if ( newItem.schoolName == cur->records[0].key ) { 
+				cur->records[0].dataSet.push_back( newItem );
+			} // if 
+			else if ( cur->records[1].dataSet.size() != 0 ) { 
+				if (newItem.schoolName == cur->records[1].key ) 
+					cur->records[1].dataSet.push_back( newItem );
+				else {
+					Slot item;
+					item.key = newItem.schoolName;
+					item.dataSet.push_back(newItem);
+					TreeNode *upRight = new TreeNode();
+					Split( cur, item, upRight ); // 分裂 
+				} // else
+			} // else if
+			else { // 若無子節點 且 只有一個 
+				if ( newItem.schoolName > cur->records[0].key ) {
+					cur->records[1].dataSet.push_back(newItem);
+					cur->records[1].key = newItem.schoolName;
+				} // if
+				else {
+					cur->records[1] = cur->records[0];
+					cur->records[0].dataSet.clear();
+					cur->records[0].dataSet.push_back(newItem);
+					cur->records[0].key = newItem.schoolName;
+				} // else
+			} // else if
+		} // else
+	} // Insert()
+	
+	void BuildTree() {
+		for ( int i = 0; i < collegeSet.size(); i++ ) {
+			Insert( collegeSet.at(i) );
+		} // for
+	} // BuildTree()
+	
+	void Split( TreeNodePtr treeNode, Slot newItem, TreeNodePtr & rightChild ) {
+		Slot temp[3]; // 排序用 
+		
+		// 排序 index 0-2 由小到大 
+		if ( newItem.key < treeNode->records[0].key ) { 
+			temp[0] = newItem;
+			temp[1] = treeNode->records[0];
+			temp[2] = treeNode->records[1];
+		} // if
+		else if ( treeNode->records[0].key < newItem.key && newItem.key < treeNode->records[1].key ) {
+			temp[0] = treeNode->records[0];
+			temp[1] = newItem;
+			temp[2] = treeNode->records[1];
+		} // else if 
+		else if ( treeNode->records[1].key < newItem.key ) {
+			temp[0] = treeNode->records[0];
+			temp[1] = treeNode->records[1];
+			temp[2] = newItem;
+		} // else
+		
+		if ( treeNode == root ) {
+			TreeNode *parent = new TreeNode();
+			parent->records[0] = temp[1];
+			parent->link[0] = treeNode;
+			parent->link[2] = rightChild;
+			treeNode->records[0] = temp[0];
+			treeNode->records[1].dataSet.clear();
+			treeNode->records[1].key = "";
+			treeNode->parent = parent;
+			rightChild->records[0] = temp[2];
+			rightChild->parent = parent;
+			root = parent;
+		} // if
+		else {
+			TreeNode *parent = treeNode->parent;
+			treeNode->records[0] = temp[0];
+			treeNode->records[1].dataSet.clear();
+			treeNode->records[1].key = "";
+			rightChild->records[0] = temp[2];
+			rightChild->parent = parent;
+			
+			
+			if ( parent->records[1].dataSet.size() == 0 ) {
+				if ( treeNode->records[0].key < parent->records[0].key ) {
+					parent->link[1] = rightChild;
+					parent->records[1] = parent->records[0];
+					parent->records[0] = temp[1];
+				} // if
+				else if ( parent->records[0].key < treeNode->records[0].key ) {
+					parent->link[1] = parent->link[2];
+					parent->link[2] = rightChild;
+					parent->records[1] = temp[1];
+				} // else if
+			} // if
+			else {
+					TreeNode *upRight = new TreeNode();
+					if ( parent->link[2] == treeNode ) {
+						upRight->link[0] = treeNode;
+						upRight->link[2] = rightChild;
+						treeNode->parent = upRight;
+						rightChild->parent = upRight;
+						
+						parent->link[2] = parent->link[1];
+						parent->link[1] = NULL;
+					} // if
+					else if ( parent->link[1] == treeNode ) {
+						upRight->link[0] = rightChild;
+						upRight->link[2] = parent->link[2];
+						rightChild->parent = upRight;
+						upRight->link[2]->parent = upRight;
+						
+						parent->link[2] = parent->link[1];
+						parent->link[1] = NULL;
+					} // else if 
+					else {
+						upRight->link[0] = parent->link[1];
+						upRight->link[2] = parent->link[2];
+						upRight->link[0]->parent = upRight;
+						upRight->link[2]->parent = upRight;
+						
+						parent->link[2] = rightChild;
+						rightChild->parent = parent;
+						parent->link[1] = NULL;
+					} // else
+					
+					Split( parent, temp[1], upRight);
+			} // else
+		} // else
+	} // Split()
+	
+	int Height() {
+		TreeNode *temp = root;
+		int i = 0;
+		while ( temp != NULL ) {
+			i++;
+			temp = temp->link[0];
+		} // while
+		
+		return i;
+	} // Height()
+	
+	int NumOfNodes( TreeNodePtr cur ) {
+		if ( cur == NULL ) 
+			return 0;
+	
+		int left = NumOfNodes( cur->link[0] );
+		int middle = NumOfNodes( cur->link[1] );
+		int right = NumOfNodes( cur->link[2] ); 
+		
+		return left + middle + right + 1 ;
+	} // NumOfNodes()
+	
+	PrintRoot() {
+		cout << endl << "樹高: " << Height();
+		cout << endl << "Number of nodes = " << NumOfNodes(root);
+		int num = 1;
+		int i = 0, j = 0;
+		while ( i < root->records[0].dataSet.size() && j < root->records[1].dataSet.size() ) {
+			if ( root->records[0].dataSet.at(i).id < root->records[1].dataSet.at(j).id ) {
+				cout << endl << num << ": [" << root->records[0].dataSet.at(i).id << "] " << root->records[0].dataSet.at(i).totalData;
+				i++;
+			} // if
+			else {
+				cout << endl << num << ": [" << root->records[1].dataSet.at(j).id << "] " << root->records[1].dataSet.at(j).totalData;
+				j++;
+			} // else
+			
+			num++;
+		} // while
+		
+		while ( i < root->records[0].dataSet.size() ) {
+			cout << endl << num << ": [" << root->records[0].dataSet.at(i).id << "] " << root->records[0].dataSet.at(i).totalData;
+			i++;
+			num++;
+		} // while
+		while ( j < root->records[1].dataSet.size() ) {
+			cout << endl << num << ": [" << root->records[1].dataSet.at(j).id << "] " << root->records[1].dataSet.at(j).totalData;
+			j++;
+			num++;
+		} // while
+	} // PrintRoot()
+} ; 
+
+class AVL {
+	struct Data {
+		int id; // 特殊序號
+		int gNum; // 上學年度畢業學生數
+		string schoolName; // 學校名稱 
+		string totalData; // 需要的全部資料 
+	};
+	vector<Data> collegeSet;
+	
+	struct AVLNode {
+		int gNum;
+		vector<Data> dataSet;
+		AVLNode *left;
+		AVLNode *right;
+		AVLNode *parent;
+	};
+	
+	AVLNode *root;
+	AVLNode *toBeCheck;
+	typedef AVLNode* AVLNodePtr;
+	
+public:
+	AVL() { root = NULL; } 
+	
+	bool Load( string & fileNum ) { // 讀檔 
+		cout << endl << "Input a file number: ";
+		cin >> fileNum; // 檔案編號 
+	
+		FILE *infile = NULL;
+		string filename = "input" + fileNum + ".txt";
+		infile = fopen( filename.c_str(), "r" );
+		
+		if ( infile == NULL )  // 無檔案 
+			cout << endl << filename << " does not exist!" << endl;
+		else { // 有檔案
+			collegeSet.clear(); // 清空vector 
+			char ch;
+			//讀掉前三行 
+			for ( ch = '\0'; ch != '\n' ; ch = getc(infile) );
+			for ( ch = '\0'; ch != '\n' ; ch = getc(infile) );
+			for ( ch = '\0'; ch != '\n' ; ch = getc(infile) );
+			
+			ch = getc(infile);
+			int rid = 1; // 特殊序號  
+			while ( ch != EOF ) {
+				Data temp;
+				string gNum = "";  
+				int numOfType = 0;
+				while ( ch != '\n' && ch != EOF ) {
+					if ( numOfType == 1 || numOfType == 3 || numOfType == 4 || numOfType == 5 || numOfType == 8 ) 
+						temp.totalData = temp.totalData + ch;
+
+					if ( numOfType == 1 && ch != '\t' ) // 學校名稱 
+						temp.schoolName = temp.schoolName + ch;					
+					else if ( numOfType == 8 ) // 上學年度畢業生數 
+						gNum = gNum + ch;
+						
+					if ( ch == '\t' )
+						numOfType++;
+					ch = getc(infile);
+				} // while
+				
+				temp.id = rid; 
+				temp.gNum = atoi( gNum.c_str() ) ;
+				collegeSet.push_back( temp ); // 將資料放入 collegeSet 
+				rid++;
+				if ( ch == '\n' )
+					ch = getc(infile);
+			} // while
+		
+			fclose( infile );
+			return true;
+		} // else 有檔案 
+		
+		fileNum = "";
+		return false;
+	} // Load()
+	
+	AVLNodePtr RR( AVLNodePtr x ) {
+		AVLNode *y = x->right;
+		x->right = y->left;
+		y->left = x;
+		return y;
+	} // RR()
+	
+	AVLNodePtr RL( AVLNodePtr x ) {
+		x->right = LL(x->right);
+		return RR(x);
+	} // RL()
+	
+	AVLNodePtr LL( AVLNodePtr x ) {
+		AVLNode *y = x->left;
+		x->left = y->right;
+		y->right = x;
+		return y;
+	} // LL()
+	
+	AVLNodePtr LR( AVLNodePtr x ) {
+		x->left = RR(x->left);
+		return LL(x);
+	} // LR()
+	
+	bool IsFinal( AVLNodePtr cur, Data temp ) {
+		if ( temp.gNum > cur->gNum )
+				cur = cur->right;
+			else if ( temp.gNum < cur->gNum )
+				cur = cur->left;
+				
+		while ( cur->gNum != temp.gNum ) {
+			if ( BF(cur) == 2 || BF(cur) == -2 )
+				return false;
+			
+			if ( temp.gNum > cur->gNum )
+				cur = cur->right;
+			else if ( temp.gNum < cur->gNum )
+				cur = cur->left;
+		} // while
+		
+		return true;
+	} // IfFinal()
+	
+	void Check( AVLNodePtr & cur, Data temp ) {
+		
+		if ( cur->gNum != temp.gNum ) {
+			if ( BF(cur) == 2 && BF(cur->left) == 1 && IsFinal( cur, temp ) ) {
+				cur = LL(cur);
+			} // else if
+			else if ( BF(cur) == 2 && BF(cur->left) == -1 && IsFinal( cur, temp ) ) {
+				cur = LR(cur);
+			} // else if 
+			else if ( BF(cur) == -2 && BF(cur->right) == -1 && IsFinal( cur, temp ) ) {
+				cur = RR(cur);
+			} // else if
+			else if ( BF(cur) == -2 && BF(cur->right) == 1 && IsFinal( cur, temp ) ) {
+				cur = RL(cur);
+			} // else if
+				
+			if ( temp.gNum > cur->gNum )
+				Check( cur->right, temp );
+			else if ( temp.gNum < cur->gNum )
+				Check( cur->left, temp );
+		} // if
+		
+	} // Rotate()
+	
+	int BF( AVLNodePtr cur ) {
+		int left = GetHeight(cur->left);
+		int right = GetHeight(cur->right);
+		
+		return left - right;
+	} // BF()
+	
+	int GetHeight( AVLNodePtr cur ) {
+		if ( cur == NULL )
+			return 0;
+		int left =  GetHeight( cur->left ) + 1;
+		int right = GetHeight( cur->right ) + 1;
+		
+		if ( left > right )
+			return left;
+		else
+			return right;
+	} // GetHeight()
+
+	
+	void NewNode( AVLNodePtr & cur, Data temp, AVLNodePtr pre ) {
+		cur = new AVLNode();
+		cur->right = NULL;
+		cur->left = NULL;
+		cur->parent = pre;
+		cur->gNum = temp.gNum;
+		cur->dataSet.push_back(temp);
+	} // SetRoot()
+	
+	void Attach( AVLNodePtr & cur, Data temp, AVLNodePtr pre ) {
+		if ( cur == NULL )
+			NewNode( cur, temp, pre );
+		else if ( temp.gNum == cur->gNum ) 
+			cur->dataSet.push_back(temp);
+		else if ( temp.gNum < cur->gNum )
+			Attach( cur->left, temp, cur );
+		else
+			Attach( cur->right, temp, cur );
+	} // Attach()
+	
+	int CreateAVLTree() {
+		for ( int i = 0; i < collegeSet.size(); i++ ) {
+			Attach( root, collegeSet.at(i), NULL);
+			Check( root, collegeSet.at(i) );
+		} // for
+	} // CreateAVLTree()
+	
+	int NumOfNodes( AVLNode *cur ) {
+		if ( cur == NULL )
+			return 0;
+		
+		int left = NumOfNodes( cur->left );
+		int right = NumOfNodes( cur->right );
+		
+		return left + right + 1;
+	} // NumOfNodes()
+	
+	void PrintRoot() {
+		cout << endl << "樹高: " << GetHeight(root);
+		cout << endl << "節點數: " << NumOfNodes(root); 
+		for ( int i = 0; i < root->dataSet.size(); i++ )
+			cout << endl << i + 1 << " :[" << root->dataSet.at(i).id << "]" << root->dataSet.at(i).totalData;
+	} // PrintRoot()
+	
+};
+int main() {
+	int command; // 指令 
+	string fileNum = ""; // 檔案名稱
+	do {
+		cout << endl << "====       作業 #2      ====";
+		cout << endl << "  0. 離開                   ";
+		cout << endl << "  1. 23樹                   ";
+		cout << endl << "  2. Build a min-max heap   ";
+		cout << endl << "============================";
+		cout << endl << "Input a command(0, 1, 2): ";
+		cin >> command;		
+		if ( command == 0 )
+			break;
+		else if ( command == 1 ) { // 任務一 
+			TwoThreeTree twoThree;
+			if ( twoThree.Load(fileNum) ) {
+				twoThree.BuildTree();
+				twoThree.PrintRoot();
+			} // if
+		} // else if
+		else if ( command == 2 ) { // 任務二 
+			AVL avl;
+			if ( avl.Load(fileNum) ) {
+				avl.CreateAVLTree();
+				avl.PrintRoot();
+				
+				
+			} // if
+		} // else if 
+	} while ( command != 0 );
+	
+} // main()
