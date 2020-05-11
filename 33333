@@ -1,0 +1,388 @@
+// 10727133 鄧陳得 10727140 黃于軒
+# include<iostream>	// cout, endl
+# include<cstring>	// strcpy
+# include<string>	// string, find_last_of, substr, clear 
+# include<cstdlib>	// atoi, system
+# include<fstream>	// open, is_open, close, write, ignore
+# include<iomanip>	// setw
+# include<vector>
+# include<new>
+# include<math.h>
+using namespace std;
+
+# define COLUMNS 6	// number of scores for each student
+# define MAX_LEN 10	// array size of student id and name
+# define BIG_INT 255	// integer upper bound
+
+typedef struct sT {		// type of a student record
+	char	sid[MAX_LEN];	// student id
+	char	sname[MAX_LEN];	// student name
+	unsigned char	score[COLUMNS];	// a set of scores in [0, 100]
+	float	mean;	// the average of scores
+} StudentType;
+vector<StudentType> studentSet ;
+
+int Text2Binary( string & fileName ) {
+	fstream inFile, outFile;
+	int stNo;
+	do {
+		cout << "Input a file number:";
+		cin >> fileName;
+		if ( ! fileName.compare("0") ) // no file to open, so quit	
+			return false;
+			
+		inFile.open( ("input" + fileName + ".txt").c_str(), fstream::in ); // open a file
+		if ( inFile.is_open() )
+			break;	// successfully open a file, so leave the loop
+	} while (true);
+	
+	outFile.open( ("input" + fileName + ".bin").c_str(), fstream::out | fstream::binary );	// create a binary file
+	if ( outFile.is_open() ) {
+		char rBuf[BIG_INT];	// buffer to keep one whole record
+		
+		while ( inFile.getline(rBuf, BIG_INT, '\n') ) {	// retrieve one entire record from file
+			string temp;	// duplicate a string in another format
+			StudentType oneSt;	// keep one record with all the required fields
+			int cNo = 0, pre = 0, pos = 0;	// indicators to extract each fields in a records
+			
+			stNo++;	// nunber of records
+			temp.assign(rBuf); // make a duplicated of entire record
+			pos = temp.find_first_of('\t', pre); // move to the end of the first field
+			
+			while ( pos != string::npos ) {
+				switch(++cNo) {
+					case 1 : strcpy( oneSt.sid,  temp.substr(pre, pos - pre).c_str() );
+						break; // copy a student id
+					case 2 : strcpy( oneSt.sname, temp.substr(pre, pos - pre).c_str() );
+						break; // copy a student name
+					default : oneSt.score[cNo-3] = atoi(temp.substr(pre, pos - pre).c_str());
+						break; // copy each score
+				} // end switch
+				
+				pre = ++pos;
+				pos = temp.find_first_of( '\t', pre ); // move to the end of the next field
+			} // while
+			
+			pos = temp.find_last_of( '\t' ); // position of the rightmost tab
+			oneSt.mean = atof( temp.substr(pos + 1).c_str() ); // copy the averages score
+			outFile.write( (char*)&oneSt, sizeof(oneSt) ); // write the entire record into a binary file
+		} // while
+		
+		outFile.close(); // wrire out the binary
+	} // if
+	
+	inFile.close(); // close the text file
+	return stNo; // it succeeds if there is at least one records
+} // Text2Binary()
+
+void ReadBinary( string fileName ) { // get records from a file
+	fstream binFile; // input file handle
+	StudentType oneSt; // keep one record with the required fields
+	int stNo = 0; // total number of students 
+	fileName = "input" + fileName + ".bin";
+	binFile.open( fileName.c_str(), fstream::in | fstream::binary ); // open a binary file
+
+	if ( binFile.is_open() ) {
+		binFile.seekg( 0, binFile.end );
+		stNo = binFile.tellg() / sizeof(oneSt);
+		binFile.seekg( 0, binFile.beg );
+		studentSet.clear(); 
+		for( int i = 0; i < stNo; i++ ) {
+			binFile.read( (char*)&oneSt, sizeof(oneSt) ); // read the entire record from a binary file
+			studentSet.push_back(oneSt);
+		} // for
+	} // if
+	
+	binFile.close(); // close input file
+} // ReadBinary()
+
+class QuadraticHash {
+	struct HashData {
+		int hvalue;
+		int sid;
+		string sname;
+		float mean;
+	};
+	
+	HashData *dHash;
+	int hashTable;
+	float average;
+	float fail;
+public:
+	QuadraticHash() { 
+		average = 0, fail = 0;
+		SetHashTable();
+		dHash = new HashData[hashTable];
+	} // constructor
+	
+	int FindPrime( int range ) {
+		int i;
+		bool isPrime = false;
+		int num = range;
+		for ( ; ! isPrime; num++ ) {
+			for( i = 2; i <= (int)sqrt(num); i++ ) {
+				if ( num % i == 0 )
+					break;
+			} // for
+			
+			if ( i == (int)sqrt(num) + 1 )
+				isPrime = true;
+		} // for
+		
+		return num - 1;
+	} // FinPrime()
+	
+	void SetHashTable() {
+		int range = (int)(1.2 * studentSet.size()) + 1;
+		hashTable = FindPrime( range );
+	} // SetHashTable() 
+	
+	void RunHash() {
+		for ( int i = 0; i < studentSet.size(); i++ ) {
+			Hash(i);
+		} // for 
+		
+		for ( int i = 0; i < hashTable; i++ ) {
+			for ( int j = 0; j < hashTable / 2 ; j++ ) {
+				fail++;
+				int cur = ( i + (int) pow( j, 2 ) ) % hashTable;
+				if ( dHash[cur].sname == "" ) {
+					break;
+				} // if
+			} // for
+		} // for 
+		
+		fail = fail - hashTable;
+		 
+		cout << endl << "Hash table has been successfully created by Quadratic probing \n";	
+
+		cout << endl << "unsuccessful search: ";
+		cout << setiosflags(ios::fixed) << setprecision(4) << fail / hashTable << " comparisons on average";
+		
+		cout << endl << "successful search: ";
+		cout << setiosflags(ios::fixed) << setprecision(4) << average / studentSet.size();
+		cout << " comparisons on average";
+		
+	} // RunHash()
+	
+	void Hash( int index ) {
+		int location = 1;
+		for ( int i = 0; i < MAX_LEN && (int)studentSet.at(index).sid[i] != 0; i++ ) {
+			location = location * (int)studentSet.at(index).sid[i] % hashTable;
+		} // for
+		
+		if ( dHash[location].sname != "" ) {
+			Collision( index, location );
+		} // if
+		else {
+			dHash[location].hvalue = location;
+			dHash[location].sid = atoi(studentSet.at(index).sid);
+			dHash[location].sname = studentSet.at(index).sname;
+			dHash[location].mean = studentSet.at(index).mean;
+			average++;
+		} // else
+	} // Hash()
+	
+	void Collision( int index, int location ) {
+		int temp = 1, i;
+		
+		for ( i = 1; i <= hashTable / 2 ; i++ ) {
+			temp++; 
+			int cur = ( location + (int) pow( i, 2 ) )  % hashTable;
+			if ( dHash[cur].sname == "" ) {
+				average = average + temp;
+				dHash[cur].hvalue = location;
+				dHash[cur].sid = atoi(studentSet.at(index).sid);
+				dHash[cur].sname = studentSet.at(index).sname;
+				dHash[cur].mean = studentSet.at(index).mean;
+				break;
+			} // if
+		} // for
+	} // Collision()
+	
+	void TextQuadraticHash( string fileName ) {
+		fstream outFile;
+		fileName = "quardratic" + fileName + ".txt";
+		outFile.open( fileName.c_str(), fstream::out );
+		if ( outFile.is_open() ) {
+			outFile << "  --- Hash table created by Quardratic hashing    ---\n";
+			for ( int i = 0; i < hashTable; i++ ) {
+				outFile << "[" << setw(3) << i << "]" << '\t';
+				if ( dHash[i].sname != "" ) {
+					outFile << dHash[i].hvalue << "," << '\t';
+					outFile << setw(8) << dHash[i].sid << "," << '\t';
+					outFile << dHash[i].sname << "," << '\t';
+					outFile << dHash[i].mean;
+				} // if
+				
+				outFile << '\n';
+			} // for
+			
+			outFile << "----------------------------------------------------- ";
+			outFile.close(); // wrire out the binary
+		} // if
+	} // TextQuadraticHash()
+}; // class DoubleHash
+
+class DoubleHash {
+	struct HashData {
+		int hvalue;
+		int sid;
+		string sname;
+		float mean;
+	};
+	
+	HashData *dHash;
+	int hashTable;
+	int maxStep;
+	float average;
+public:
+	DoubleHash() { 
+		average = 0;
+		SetHashTable();
+		dHash = new HashData[hashTable];
+		SetMaxStep(); 
+	} // constructor
+	
+	int FindPrime( int range ) {
+		int i;
+		bool isPrime = false;
+		int num = range;
+		for ( ; ! isPrime; num++ ) {
+			for( i = 2; i <= (int)sqrt(num); i++ ) {
+				if ( num % i == 0 )
+					break;
+			} // for
+			
+			if ( i == (int)sqrt(num) + 1 )
+				isPrime = true;
+		} // for
+		
+		return num - 1;
+	} // FinPrime()
+	
+	void SetHashTable() {
+		int range = (int)(1.2 * studentSet.size()) + 1;
+		hashTable = FindPrime( range );
+	} // SetHashTable() 
+	
+	void SetMaxStep() {
+		int range = ( studentSet.size() / 3 ) + 1; 
+		maxStep = FindPrime( range );
+	} //  SetMaxStep()
+	
+	void RunHash() {
+		for ( int i = 0; i < studentSet.size(); i++ ) {
+			Hash(i);
+		} // for 
+	
+		cout << endl << "Hash table has been successfully created by Double hashing";
+		
+		cout << endl << "successful search: ";
+		cout << setiosflags(ios::fixed) << setprecision(4) << average / studentSet.size();
+		cout << " comparisons on average";
+	} // RunHash()
+	
+	
+	void Hash( int index ) {
+		int location = 1;
+		for ( int i = 0; i < MAX_LEN && (int)studentSet.at(index).sid[i] != 0; i++ ) {
+			location = location * (int)studentSet.at(index).sid[i] % hashTable;
+		} // for
+		
+		if ( dHash[location].sname != "" ) {
+			Collision( index, location );
+		} // if
+		else {
+			dHash[location].hvalue = location;
+			dHash[location].sid = atoi(studentSet.at(index).sid);
+			dHash[location].sname = studentSet.at(index).sname;
+			dHash[location].mean = studentSet.at(index).mean;
+			average++;
+		} // else
+	} // Hash()
+	
+	void Collision( int index, int location ) {
+		int step = 1;
+		
+		for ( int i = 0; i < MAX_LEN && (int)studentSet.at(index).sid[i] != 0; i++ ) {
+			step = step * (int)studentSet.at(index).sid[i] % maxStep;
+		} // for
+		
+		step = maxStep - step;
+		int cur = ( location + step ) % hashTable;
+		
+		int tempAverage = 1;
+		while ( cur != location ) {
+			
+			tempAverage++;
+			if ( dHash[cur].sname == "" ) {
+				average = average + tempAverage;
+				dHash[cur].hvalue = location;
+				dHash[cur].sid = atoi(studentSet.at(index).sid);
+				dHash[cur].sname = studentSet.at(index).sname;
+				dHash[cur].mean = studentSet.at(index).mean;
+				break;
+			} // if
+			
+			cur = ( cur + step ) % hashTable;
+		} // for
+	} // Collision()
+	
+	void TextDoubleHash( string fileName ) {
+		fstream outFile;
+		fileName = "double" + fileName + ".txt";
+		outFile.open( fileName.c_str(), fstream::out );
+		if ( outFile.is_open() ) {
+				outFile << "  --- Hash table created by Double hashing    ---\n";
+			for ( int i = 0; i < hashTable; i++ ) {
+				outFile << "[" << setw(3) << i << "]" << '\t';
+				if ( dHash[i].sname != "" ) {
+					outFile << dHash[i].hvalue << "," << '\t';
+					outFile << setw(8) << dHash[i].sid << "," << '\t';
+					outFile << dHash[i].sname << "," << '\t';
+					outFile << dHash[i].mean;
+				} // if
+				
+				outFile << '\n';
+			} // for
+			
+			outFile << "----------------------------------------------------- ";
+			outFile.close(); // wrire out the binary
+		} // if
+	} // TextDoubleHash()
+}; // class DoubleHash
+
+int main() {
+	int command = 0;
+	string fileName;
+	
+	do {
+	    cout << endl << "======= Hash Table =======";
+	    cout << endl << "== 0. QUIT              ==";
+	    cout << endl << "== 1. Quadratic probing ==";
+	    cout << endl << "== 2. Double hashing    ==";
+	    cout << endl << "==========================";
+	    cout << endl << "Input a choice(0, 1, 2): "; 
+	    cin >> command;
+	    
+	    if ( command == 0 )
+	    	break;
+	    else if ( command == 1 ) {
+			Text2Binary( fileName );
+			ReadBinary( fileName );
+			QuadraticHash qurtHash;
+			qurtHash.RunHash();
+			qurtHash.TextQuadraticHash( fileName );
+			system( "pause" );
+		} // else if
+		else if ( command == 2 ) {
+			Text2Binary( fileName );
+			ReadBinary( fileName );
+			DoubleHash doubleHash;
+			doubleHash.RunHash();
+			doubleHash.TextDoubleHash( fileName );
+			system( "pause" );
+		} // else if
+    } while ( command != 0 ); 
+} // main()
