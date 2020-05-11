@@ -26,7 +26,7 @@ int Text2Binary( string & fileName ) {
 	fstream inFile, outFile;
 	int stNo;
 	do {
-		cout << "Input a file number:";
+		cout << "Input a file number(輸入0則退出讀檔): ";
 		cin >> fileName;
 		if ( ! fileName.compare("0") ) // no file to open, so quit	
 			return false;
@@ -45,7 +45,7 @@ int Text2Binary( string & fileName ) {
 			StudentType oneSt;	// keep one record with all the required fields
 			int cNo = 0, pre = 0, pos = 0;	// indicators to extract each fields in a records
 			
-			stNo++;	// nunber of records
+			stNo++;	// number of records
 			temp.assign(rBuf); // make a duplicated of entire record
 			pos = temp.find_first_of('\t', pre); // move to the end of the first field
 			
@@ -186,7 +186,7 @@ public:
 	void Collision( int index, int location ) {
 		int temp = 1, i;
 		
-		for ( i = 1; i < hashTable / 2 ; i++ ) {
+		for ( i = 1; i <= hashTable / 2 ; i++ ) {
 			temp++; 
 			int cur = ( location + (int) pow( i, 2 ) )  % hashTable;
 			if ( dHash[cur].sname == "" ) {
@@ -267,8 +267,7 @@ public:
 	} // SetHashTable() 
 	
 	void SetMaxStep() {
-		int range = ( studentSet.size() / 3 ) + 1;
-		cout << "range: " << range;
+		int range = ( studentSet.size() / 3 ) + 1; 
 		maxStep = FindPrime( range );
 	} //  SetMaxStep()
 	
@@ -370,20 +369,22 @@ int main() {
 	    if ( command == 0 )
 	    	break;
 	    else if ( command == 1 ) {
-			Text2Binary( fileName );
-			ReadBinary( fileName );
-			QuadraticHash qurtHash;
-			qurtHash.RunHash();
-			qurtHash.TextQuadraticHash( fileName );
-			system( "pause" );
+	    	if ( Text2Binary( fileName ) != 0 ) {
+				ReadBinary( fileName );
+				QuadraticHash qurtHash;
+				qurtHash.RunHash();
+				qurtHash.TextQuadraticHash( fileName );
+				system( "pause" );
+			} // if
 		} // else if
 		else if ( command == 2 ) {
-			Text2Binary( fileName );
-			ReadBinary( fileName );
-			DoubleHash doubleHash;
-			doubleHash.RunHash();
-			doubleHash.TextDoubleHash( fileName );
-			system( "pause" );
+	    	if ( Text2Binary( fileName ) != 0 ) {
+				ReadBinary( fileName );
+				DoubleHash doubleHash;
+				doubleHash.RunHash();
+				doubleHash.TextDoubleHash( fileName );
+				system( "pause" );
+			} // if 
 		} // else if
     } while ( command != 0 ); 
 } // main()
