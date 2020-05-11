@@ -369,7 +369,7 @@ int main() {
 	    if ( command == 0 )
 	    	break;
 	    else if ( command == 1 ) {
-	    	if ( Text2Binary( fileName ) != 0 ) {
+	    	if ( Text2Binary( fileName ) > 0 ) {
 				ReadBinary( fileName );
 				QuadraticHash qurtHash;
 				qurtHash.RunHash();
@@ -378,7 +378,7 @@ int main() {
 			} // if
 		} // else if
 		else if ( command == 2 ) {
-	    	if ( Text2Binary( fileName ) != 0 ) {
+	    	if ( Text2Binary( fileName ) > 0 ) {
 				ReadBinary( fileName );
 				DoubleHash doubleHash;
 				doubleHash.RunHash();
