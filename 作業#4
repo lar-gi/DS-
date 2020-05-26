@@ -1,0 +1,294 @@
+// 10727140 黃于軒
+#include <iostream>	// cout, endl
+#include <cstring>	// strcpy
+#include <string>	// string, find_last_of, substr, clear 
+#include <cstdlib>	// atoi, system
+#include <fstream>	// open, is_open, close, write, ignore
+#include <iomanip>	// setw
+#include <vector>	// vector, push_back()
+#include <queue>	// queue: push, pop, front, empty
+#include <new>
+#include <math.h>
+#include <algorithm>
+#include <time.h>
+
+using namespace std;
+
+# define MAX_LEN 10	// array size of student id and name
+# define PAGE 25 // amount of display on screen
+# define NONE -1 // error flag 
+
+class DirectedGraph {
+	typedef struct sP {		// student pair
+		char	sid1[MAX_LEN];	// 1st sid: sender
+		char	sid2[MAX_LEN];	// 2st sid: reciver
+		float	weight;			// pair weight
+	} StudentPair;
+
+	typedef struct aLN {	// node of adjacency lists
+		string	sid2;		// receiver
+		float	weight;		// pair weight
+		struct	aLN *next;	// pointer of the next node
+	} AdjListNode;
+
+	typedef struct aL {		// adjacency list
+		string		sid1;	// sender
+		AdjListNode	*head;	// pointer to the first node of a list
+	} AdjList;
+
+	typedef struct bfs {
+		string sid1;
+		vector<string> sid2s;
+	} BFSNode;
+	
+	vector<StudentPair> studentPair;
+	vector<AdjList> adjList;	// the adjacency lists
+	string fileNo;		// a number to form a file name
+	vector<BFSNode> bfs;
+public:
+	DirectedGraph(): fileNo("") {}
+	
+	bool ReadBinary() { // get records from a file
+		fstream binFile; // input file handle
+		StudentPair oneSt; // keep one record with the required fields
+		do {
+			cout << "\nInput a file number([0]:退出): ";
+			cin >> fileNo;
+			string fileName = "pairs" + fileNo + ".bin";
+			if ( ! fileNo.compare("0") ) // no file to open, so quit	
+				return false;
+		
+			int stNo = 0; // total number of students 		
+			binFile.open( fileName.c_str(), fstream::in | fstream::binary ); // open a binary file
+			if ( binFile.is_open() ) {
+				binFile.seekg( 0, binFile.end );
+				stNo = binFile.tellg() / sizeof(oneSt);
+				binFile.seekg( 0, binFile.beg );
+				studentPair.clear(); 
+				for( int i = 0; i < stNo; i++ ) {
+					binFile.read( (char*)&oneSt, sizeof(oneSt) ); // read the entire record from a binary file
+					studentPair.push_back(oneSt);
+				} // for
+				
+				break;
+			} // if
+			
+			cout << "### pairs"<< fileNo <<".bin does not exist! ###\n";
+		} while (true);
+	
+		binFile.close(); // close input file
+		return true;
+	} // ReadBinary()
+
+	void Create() { // 建立 adjList
+		adjList.clear();
+		// 將發訊者加入 adjList 
+		for ( int i = 0; i < studentPair.size(); i++ ) {
+			if ( adjList.empty() || studentPair.at(i).sid1 != adjList.back().sid1 ) {
+				// 還未加入此發訊者的資料 
+				AdjList tempSid1;
+				tempSid1.sid1 = studentPair.at(i).sid1;
+				AdjListNode *tempSid2 = new AdjListNode();
+				tempSid2->sid2 = studentPair.at(i).sid2;
+				tempSid2->weight = studentPair.at(i).weight;
+				tempSid2->next = NULL;
+				tempSid1.head = tempSid2;
+				adjList.push_back(tempSid1);
+			} // if
+			else if ( adjList.back().sid1 == studentPair.at(i).sid1 ) {
+				// 已有此發訊者的資料 
+				AdjListNode *tempSid2 = new AdjListNode();
+				tempSid2->sid2 = studentPair.at(i).sid2;
+				tempSid2->weight = studentPair.at(i).weight;
+				AdjListNode *cur = adjList.back().head;
+				AdjListNode *pre = cur;
+				
+				// 加入收訊者資料 (依照由小到大排序) 
+				while ( cur != NULL ) {
+					if ( tempSid2->sid2 < cur->sid2 ) {
+						tempSid2->next = cur;
+						if ( pre != cur )
+							pre->next = tempSid2;
+						break;
+					} // if
+					
+					pre = cur;
+					cur = cur->next;
+				} // while
+				
+				if ( pre == cur ) {
+					pre = tempSid2;
+					pre->next = cur;
+					adjList.back().head = tempSid2;
+				} // if
+				else if ( pre != NULL && cur == NULL ) {
+					pre->next = tempSid2;
+					tempSid2->next = NULL;
+				} // if
+			} // else if 
+		} // for
+		
+		for ( int i = adjList.size(); i > 0; i-- ) {  // 依照發訊者學號排序 
+			for ( int j = 0; j < i - 1; j++ ) {
+        		if ( adjList.at(j).sid1 > adjList.at(j + 1).sid1 ) {
+					swap( adjList.at(j), adjList.at(j+1) );
+        		} // if
+			} // for
+		} // for
+	} // Create()
+	
+	void CheckReceiver() { // 檢查是否有 從未發訊的 收訊者 
+		for ( int i = 0; i < studentPair.size(); i++ ) {
+			bool isFound = false;
+			int loc;
+			// 是否有發過訊息 
+			for ( loc = 0; loc < adjList.size() && !isFound 
+				&& adjList.at(loc).sid1 <= studentPair.at(i).sid2 ; loc++ ) {
+				if ( adjList.at(loc).sid1 == studentPair.at(i).sid2 ) 
+					isFound = true;
+			} // for
+			
+			//將沒發過訊息的學生 加入asdjList 
+			if ( !isFound ) {  
+				AdjList tempSid1;
+				tempSid1.sid1 = studentPair.at(i).sid2;
+				tempSid1.head = NULL;
+				if ( loc < adjList.size() )
+					adjList.insert(adjList.begin() + loc, tempSid1);
+				else
+					adjList.push_back(tempSid1);
+			} // if
+				
+		} // for
+	} // CheckReceiver()
+	
+	int FindLocation( string toFind ) {
+		for ( int i = 0; i < adjList.size(); i++ ) {
+			if ( adjList.at(i).sid1 == toFind )
+				return i;		
+		} // for
+	} // FindLocation()
+	
+	void Traversal() {
+		bfs.clear();
+		for ( int i = 0; i < adjList.size(); i++ ) {
+			BFSNode temp;
+			temp.sid1 = adjList.at(i).sid1;
+			queue<string> que;
+			que.push(temp.sid1);
+			while ( ! que.empty() && temp.sid2s.size() < adjList.size() - 1 ) {
+				string toFind = que.front();
+				que.pop();
+				int loc = FindLocation(toFind);
+				
+				for ( AdjListNode *cur = adjList.at(loc).head;
+					 cur != NULL && temp.sid2s.size() < adjList.size() - 1; cur = cur->next ) {
+					
+					if ( find( temp.sid2s.begin(), temp.sid2s.end(), cur->sid2 ) == temp.sid2s.end()
+						&& cur->sid2 != temp.sid1 ) {
+						temp.sid2s.push_back(cur->sid2);
+						que.push(cur->sid2);
+					} // if
+				} // for
+			} // while
+			
+			sort(temp.sid2s.begin(), temp.sid2s.end()); // 排序 
+			bfs.push_back(temp);
+		} // for
+		
+		for ( int i = bfs.size(); i > 0; i-- ) { // 依照 連通數 排序(由大至小) 
+			for ( int j = 0; j < i - 1; j++ ) {
+        		if ( bfs.at(j).sid2s.size() < bfs.at(j + 1).sid2s.size() ) {
+					swap( bfs.at(j), bfs.at(j+1) );
+        		} // if
+			} // for
+		} // for
+	} // Traversal()
+	
+	void TextOutput1() { // 輸出檔案 (任務一) 
+		fstream outFile;
+		string fileName = "Pairs_" + fileNo + ".adj";
+		outFile.open( fileName.c_str(), fstream::out );
+		if ( outFile.is_open() ) {
+			int nodesNo = 0;
+			outFile << "<<< There are " << adjList.size() << " IDs in total. >>>";
+			cout << "\n<<< There are " << adjList.size() << " IDs in total. >>>";
+			for ( int i = 0; i < adjList.size(); i++ ) {
+				outFile << "\n[" << setw(3) << i + 1 << "] " << adjList.at(i).sid1 << ":" << endl;
+				
+				AdjListNode *cur = adjList.at(i).head;
+				int receiversNo = 0;
+				for ( receiversNo = 1; cur != NULL; receiversNo++ ) {
+					outFile << "\t(" << setw(2) << receiversNo << ") " << cur->sid2 << ",\t" << setw(4) << cur->weight; 
+					if ( receiversNo % 10 == 0 )
+						outFile << "\n";
+					
+					cur = cur->next;
+				} // for
+				
+				nodesNo = nodesNo + receiversNo - 1;
+			} // for
+			
+			outFile << "\n<<< There are " << nodesNo <<" nodes in total. >>>\n";
+			cout << "\n<<< There are " << nodesNo <<" nodes in total. >>>\n";
+			outFile.close(); // wrire out the binary
+		} // if
+	} // TextOutput1()
+
+	void TextOutput2() { // 輸出檔案 (任務二) 
+		fstream outFile;
+		string fileName = "Pairs_" + fileNo + ".cnt";
+		outFile.open( fileName.c_str(), fstream::out );
+		if ( outFile.is_open() ) {
+			int nodesNo = 0;
+			outFile << "<<< There are " << bfs.size() << " IDs in total. >>>";
+			cout << "\n<<< There are " << bfs.size() << " IDs in total. >>>";
+			for ( int i = 0; i < bfs.size(); i++ ) {
+				outFile << "\n[" << setw(3) << i + 1 << "] " << bfs.at(i).sid1;
+				outFile << "("<< bfs.at(i).sid2s.size() <<")" << ":\n\t";
+				
+				for ( int j = 0; j < bfs.at(i).sid2s.size(); j++ ) {
+					outFile << "(" << setw(2) << j + 1 << ") " << bfs.at(i).sid2s.at(j) << "\t";
+					if ( (j + 1) % 10 == 0 )
+						outFile << "\n\t";
+				} // for
+			} // for
+	
+			outFile.close(); // wrire out the binary
+		} // if
+	} // TextOutput2()
+};
+
+int main() {
+	int command = 0;
+	bool oneIsDone = false;
+	DirectedGraph dGraph;	
+	do {
+	    cout << endl << "===  Graph data manipulation      ===";
+	    cout << endl << "==   0. QUIT                       ==";
+	    cout << endl << "==   1. Build adjacency lists      ==";
+	    cout << endl << "==   2. Compute connection counts  ==";
+	    cout << endl << "=====================================";
+	    cout << endl << "Input a choice(0, 1, 2): "; 
+	    cin >> command;
+	    
+	    if ( command == 0 )
+	    	break;
+	    else if ( command == 1 ) {	// 任務一 
+	    	if ( dGraph.ReadBinary() ) {	// 是否有此檔案 
+		    	dGraph.Create();		// 建立 相鄰串列 
+		    	dGraph.CheckReceiver();	// 將未發過訊息的收訊者 加入 相鄰串列 
+	    		dGraph.TextOutput1();	// 輸出檔案 
+	    		oneIsDone = true; 		// 以建立相鄰串立(任務一) 
+	    	} // if
+		} // else if
+		else if ( command == 2 ) {	// 任務二 
+	    	if( !oneIsDone ) // 是否已建立過 相鄰串列 (任務一) 
+	    		cout << "\n### There is no graph and choose 1 first. ###";
+			else {
+				dGraph.Traversal();		// 寬度走訪 
+				dGraph.TextOutput2();	// 輸出檔案	
+			} // else
+		} // else if
+    } while ( command != 0 ); 
+} // main()
